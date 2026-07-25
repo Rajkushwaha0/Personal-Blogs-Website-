@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Open the URL Vite prints (with base `/pipelines/`).
+Open the URL Vite prints (with base `/Personal-Blogs-Website-/`).
 
 ## Build
 

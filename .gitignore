@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Built site is committed for GitHub Pages (/docs)
+# docs/ is intentionally tracked
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

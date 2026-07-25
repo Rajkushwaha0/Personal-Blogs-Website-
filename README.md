@@ -1,6 +1,6 @@
 # Raj's Blogs
 
-Static React blog (Vite + TypeScript) for system design, architecture, and backend engineering posts. Two screens: a home list and a post detail page. Content is local for now; the data layer is ready to swap to a backend later.
+Static React blog (Vite + TypeScript) for system design, architecture, and backend engineering posts.
 
 ## Develop
 
@@ -9,27 +9,41 @@ npm install
 npm run dev
 ```
 
-Open the URL Vite prints (with base `/Personal-Blogs-Website-/`).
+Open the URL Vite prints. It should include `/Personal-Blogs-Website-/` in the path.
 
-## Build
+## Build for GitHub Pages
 
 ```bash
 npm run build
-npm run preview
 ```
+
+This writes the production site into the `docs/` folder.
+
+## Deploy (current setup)
+
+1. Run `npm run build`
+2. Commit and push the `docs/` folder to `main`
+3. In GitHub: **Settings → Pages → Build and deployment**
+   - Source: **Deploy from a branch**
+   - Branch: **main**
+   - Folder: **/docs**
+4. Wait 1–2 minutes, then open:
+   `https://rajkushwaha0.github.io/Personal-Blogs-Website-/`
+
+Posts use HashRouter, so refresh works on URLs like:
+`https://rajkushwaha0.github.io/Personal-Blogs-Website-/#/posts/...`
+
+## Why the blank page / missing images happened
+
+GitHub was serving the repo root (`index.html` + `/src/main.tsx`). Browsers cannot run TypeScript that way, so the page stayed blank.
+
+Images also broke because:
+
+- the app requests `/Personal-Blogs-Website-/blog/image.png`
+- the unbuilt repo only had `/Personal-Blogs-Website-/public/blog/image.png`
+
+The Vite build copies `public/blog/*` into `docs/blog/*`, which matches the image URLs.
 
 ## Add a post
 
-Edit [`src/data/posts/index.ts`](src/data/posts/index.ts). Add an object with `slug`, `title`, `date`, `excerpt`, and `content`.
-
-Pages load posts only through [`src/api/posts.ts`](src/api/posts.ts). When you add a backend, change that file to call your API.
-
-## Deploy to GitHub Pages
-
-1. Push this repo to GitHub (name it `pipelines`, or change `base` in `vite.config.ts` to match).
-2. In the repo: **Settings → Pages → Source → GitHub Actions**.
-3. Push to `main` (or run the **Deploy to GitHub Pages** workflow).
-
-Site URL: `https://<username>.github.io/pipelines/`
-
-Routes use HashRouter (`/#/posts/...`) so refreshes work on Pages without a server.
+Edit [`src/data/posts/index.ts`](src/data/posts/index.ts), then run `npm run build` and push `docs/` again.

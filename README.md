@@ -30,8 +30,11 @@ This writes the production site into the `docs/` folder.
 4. Wait 1–2 minutes, then open:
    `https://rajkushwaha0.github.io/Personal-Blogs-Website-/`
 
-Posts use HashRouter, so refresh works on URLs like:
-`https://rajkushwaha0.github.io/Personal-Blogs-Website-/#/posts/...`
+Posts use path URLs (BrowserRouter). Share and open links like:
+`https://rajkushwaha0.github.io/Personal-Blogs-Website-/posts/...`
+
+A `404.html` copy of the app is generated on build so GitHub Pages can load deep links.
+Old `#/posts/...` links redirect to the path form when the hash is present.
 
 ## Why the blank page / missing images happened
 

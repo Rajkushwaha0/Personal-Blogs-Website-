@@ -9,6 +9,16 @@
       content="Raj's Blogs — system design, architecture, and backend engineering deep dives."
     />
     <title>Raj's Blogs</title>
+    <script>
+      // Old HashRouter links (#/posts/...) → path URLs so shares keep working.
+      (function () {
+        var hash = window.location.hash
+        if (hash && hash.charAt(1) === '/') {
+          var base = '/Personal-Blogs-Website-'
+          window.location.replace(base + hash.slice(1))
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

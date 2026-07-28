@@ -7,6 +7,8 @@ export const posts: Post[] = [
     date: '2026-07-25',
     excerpt:
       'Follow one uploaded video through validation, SQS, parallel workers, CDN sync, retries, and deletion — and the failures each stage has to survive.',
+    status: 'published',
+    tags: ['media', 'pipelines', 'architecture'],
     content: [
       {
         type: 'paragraph',
@@ -422,6 +424,8 @@ export const posts: Post[] = [
     date: '2026-07-24',
     excerpt:
       'What this blog is about: system design, architecture, and backend engineering explained through real production problems.',
+    status: 'published',
+    tags: ['meta'],
     content: [
       {
         type: 'paragraph',
@@ -455,5 +459,101 @@ export const posts: Post[] = [
         text: 'If you are preparing for design interviews or building systems that need to survive scale, these posts are meant to be read as walkthroughs rather than summaries. Start with any topic that matches what you are building right now.',
       },
     ],
+  },
+  {
+    slug: 'redis-in-production-what-and-when',
+    title: 'What Redis Is and When to Use It',
+    date: '2026-08-06',
+    excerpt:
+      'Cache, sessions, rate limits, pub/sub, queues — and when Redis is the wrong tool for the job.',
+    status: 'coming_soon',
+    series: 'redis-in-production',
+    part: 1,
+    tags: ['redis', 'cache', 'system-design'],
+    content: [],
+  },
+  {
+    slug: 'redis-in-production-caching-strategies',
+    title: 'Caching Strategies',
+    date: '2026-08-13',
+    excerpt:
+      'Cache-aside, read-through, write-through, write-behind, and refresh-ahead — each with the footgun that shows up in production.',
+    status: 'coming_soon',
+    series: 'redis-in-production',
+    part: 2,
+    tags: ['redis', 'cache', 'system-design'],
+    content: [],
+  },
+  {
+    slug: 'redis-in-production-cache-failures',
+    title: 'Famous Cache Failures',
+    date: '2026-08-20',
+    excerpt:
+      'Penetration, hot-key breakdown, avalanche, stampede, and pollution — named by the symptom that wakes you up.',
+    status: 'coming_soon',
+    series: 'redis-in-production',
+    part: 3,
+    tags: ['redis', 'cache', 'system-design'],
+    content: [],
+  },
+  {
+    slug: 'redis-in-production-consistency-and-locks',
+    title: 'Consistency, Races, and Distributed Locks',
+    date: '2026-08-27',
+    excerpt:
+      'Stale cache after DB writes, double-delete, lost updates, and why a Redis lock alone is not enough.',
+    status: 'coming_soon',
+    series: 'redis-in-production',
+    part: 4,
+    tags: ['redis', 'cache', 'concurrency'],
+    content: [],
+  },
+  {
+    slug: 'redis-in-production-persistence',
+    title: 'Persistence: RDB, AOF, and Hybrid',
+    date: '2026-09-03',
+    excerpt:
+      'Snapshots, append-only recovery, RPO/RTO trade-offs, and what happens when Redis restarts cold.',
+    status: 'coming_soon',
+    series: 'redis-in-production',
+    part: 5,
+    tags: ['redis', 'persistence'],
+    content: [],
+  },
+  {
+    slug: 'redis-in-production-replication-and-sentinel',
+    title: 'Replication and Sentinel',
+    date: '2026-09-10',
+    excerpt:
+      'Read replicas, replication lag, quorum elections, automatic failover, and split-brain risks.',
+    status: 'coming_soon',
+    series: 'redis-in-production',
+    part: 6,
+    tags: ['redis', 'ha', 'sentinel'],
+    content: [],
+  },
+  {
+    slug: 'redis-in-production-cluster-and-ops',
+    title: 'Cluster, Hot Keys, and Ops Failures',
+    date: '2026-09-17',
+    excerpt:
+      'Hash slots, MOVED vs ASK, big keys, slow commands, eviction policies, and connection storms.',
+    status: 'coming_soon',
+    series: 'redis-in-production',
+    part: 7,
+    tags: ['redis', 'cluster', 'ops'],
+    content: [],
+  },
+  {
+    slug: 'redis-in-production-playbook',
+    title: 'Production Playbook and Interview Scenarios',
+    date: '2026-09-24',
+    excerpt:
+      'A runbook checklist plus system-design drills: flash sales, rate limiters, sessions, and failover.',
+    status: 'coming_soon',
+    series: 'redis-in-production',
+    part: 8,
+    tags: ['redis', 'system-design', 'interview'],
+    content: [],
   },
 ]

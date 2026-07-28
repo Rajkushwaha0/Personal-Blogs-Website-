@@ -1,8 +1,14 @@
+export type PostStatus = 'published' | 'coming_soon'
+
 export type PostSummary = {
   slug: string
   title: string
   date: string
   excerpt: string
+  status: PostStatus
+  series?: string
+  part?: number
+  tags?: string[]
 }
 
 export type PostContentBlock =

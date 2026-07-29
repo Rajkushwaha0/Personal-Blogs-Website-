@@ -1,6 +1,8 @@
 import type { Post } from '../../types/post'
+import { productionDagSchedulerPost } from './productionDagScheduler'
 
 export const posts: Post[] = [
+  productionDagSchedulerPost,
   {
     slug: 'designing-an-end-to-end-media-enrichment-pipeline',
     title: 'Designing an End-to-End Media Enrichment Pipeline',
@@ -41,7 +43,7 @@ export const posts: Post[] = [
       },
       {
         type: 'image',
-        src: 'blog/media-pipeline-architecture.png',
+        src: 'blog/designing-an-end-to-end-media-enrichment-pipeline/media-pipeline-architecture.png',
         alt: 'Architecture diagram of the full media processing pipeline from upload through deletion',
         caption:
           'The full lifecycle. The rest of this article walks video.mp4 through each box, one failure at a time.',
@@ -61,7 +63,7 @@ export const posts: Post[] = [
       },
       {
         type: 'image',
-        src: 'blog/upload-flow.png',
+        src: 'blog/designing-an-end-to-end-media-enrichment-pipeline/upload-flow.png',
         alt: 'Upload flow diagram showing client requesting a presigned URL, uploading to private S3, validation, media record creation, and SQS publish',
         caption:
           'video.mp4 never streams through the API. Presigned upload, then validation, then the media record, then the queue.',
@@ -162,7 +164,7 @@ export const posts: Post[] = [
       },
       {
         type: 'image',
-        src: 'blog/parallel-workers.png',
+        src: 'blog/designing-an-end-to-end-media-enrichment-pipeline/parallel-workers.png',
         alt: 'Parallel workers diagram showing SQS fanning out to HLS, enrichment, and write-back to the media document',
         caption:
           'One message, parallel work. HLS and enrichment scale independently and both write back to the same media document.',
@@ -282,7 +284,7 @@ export const posts: Post[] = [
       },
       {
         type: 'image',
-        src: 'blog/cdn-sync-flow.png',
+        src: 'blog/designing-an-end-to-end-media-enrichment-pipeline/cdn-sync-flow.png',
         alt: 'CDN synchronization diagram showing a sync worker distributing an asset to CloudFront, Shopify, Gumlet, and other client CDNs',
         caption:
           'CloudFront is the default. Client destinations are adapters — and a way to keep repeated delivery cost off our egress bill.',
@@ -318,7 +320,7 @@ export const posts: Post[] = [
       },
       {
         type: 'image',
-        src: 'blog/deletion-flow.png',
+        src: 'blog/designing-an-end-to-end-media-enrichment-pipeline/deletion-flow.png',
         alt: 'Safe deletion diagram showing soft delete, retention window, cleanup worker, and delete-everywhere across storage and CDNs',
         caption:
           'Delete is a workflow, not a button. Soft delete first, retain for recovery, then clean every copy.',

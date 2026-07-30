@@ -19,7 +19,8 @@ export default defineConfig({
   plugins: [react(), spaFallback()],
   base: '/Personal-Blogs-Website-/',
   build: {
-    // GitHub Pages "Deploy from a branch" + /docs folder
+    // Local/CI artifact. GitHub Actions uploads this folder to Pages.
+    // Commit assets under public/ only — docs/ is gitignored.
     outDir: 'docs',
     emptyOutDir: true,
   },

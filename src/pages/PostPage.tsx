@@ -62,6 +62,36 @@ function ContentBlock({ block }: { block: PostContentBlock }) {
           {block.caption && <figcaption>{block.caption}</figcaption>}
         </figure>
       )
+    case 'table':
+      return (
+        <figure className="post-table-wrap">
+          <div className="post-table-scroll">
+            <table className="post-table">
+              <thead>
+                <tr>
+                  {block.headers.map((header) => (
+                    <th key={header} scope="col">
+                      <InlineText text={header} />
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {block.rows.map((row, rowIndex) => (
+                  <tr key={`${row[0] ?? 'row'}-${rowIndex}`}>
+                    {row.map((cell, cellIndex) => (
+                      <td key={`${cellIndex}-${cell}`}>
+                        <InlineText text={cell} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {block.caption && <figcaption>{block.caption}</figcaption>}
+        </figure>
+      )
   }
 }
 

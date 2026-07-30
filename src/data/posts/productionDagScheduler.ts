@@ -2,250 +2,351 @@ import type { Post } from '../../types/post'
 
 export const productionDagSchedulerPost: Post = {
   slug: 'building-a-production-ready-dag-task-scheduler-for-ai-workflows',
-  title: 'Building a Production-Ready DAG Task Scheduler for AI Workflows',
+  title: 'How Production Workflow Schedulers Actually Work',
   date: '2026-07-30',
   excerpt:
-    'How to schedule dependency-driven AI workflows without duplicate execution, lost children, or graph-wide scans — and what breaks first when you scale to millions of tasks.',
+    'A PM asks for a simple AI pipeline. It works on day 1. By day 60 the platform is on fire. Follow the failures that force every design decision — from dependency counters to CAS, leases, and the outbox.',
   status: 'published',
   tags: ['pipelines', 'scheduler', 'architecture', 'system-design'],
   content: [
     {
       type: 'paragraph',
-      text: 'A product manager asks for a simple feature: the user types a prompt, the system generates two images, stitches a video from those images, then attaches audio. Four steps. Linear. Easy.',
-    },
-    {
-      type: 'paragraph',
-      text: 'Then production arrives. One image worker crashes after writing the PNG but before acknowledging the message. Another scheduler instance publishes the same video task twice. Audio starts before video finishes because a dependency flag and a dependency list disagree. Overnight the DAG grows from four nodes to forty thousand, and the nightly “find all waiting tasks” scan becomes the outage.',
-    },
-    {
-      type: 'paragraph',
-      text: 'Modern AI applications rarely execute a single task. They execute graphs. This article is a production-grade reference design for scheduling those graphs: what must be true under concurrency, how workers stay idempotent on at-least-once queues, and where the capacity numbers actually come from.',
+      text: 'This is not a tour of “the scheduler I built.” It is an investigation. We start with a feature every engineer has been asked to ship, watch it fail in production the way real systems fail, and only then introduce each mechanism — when the pain makes the reason obvious.',
     },
     {
       type: 'callout',
       title: 'How to read this',
-      text: 'Treat this as an architecture you can implement or pressure-test in a design review — not a claim that every line is already shipped in one specific codebase. The invariants matter more than the brand names on the boxes.',
+      text: 'You are learning with the system. Each section answers a question the previous failure raised. By the end you should be able to explain why queues alone are not enough, why DAGs exist, and why visibility timeout is not correctness.',
     },
+
     {
       type: 'heading',
-      text: 'Meet the workflow that keeps breaking',
+      text: 'The feature looked easy',
     },
     {
       type: 'paragraph',
-      text: 'We will follow one run end to end:',
+      text: 'A product manager asks for something simple. The user types a prompt. The system generates two images, stitches a video from those images, then attaches audio.',
     },
     {
       type: 'list',
       ordered: true,
       items: [
-        '`Prompt` produces structured generation params.',
-        '`Image A` and `Image B` run in parallel from that prompt.',
-        '`Video` waits for both images.',
-        '`Audio` waits for the video.',
+        'User enters a prompt',
+        'Generate Image A',
+        'Generate Image B',
+        'Create Video',
+        'Generate Audio',
       ],
     },
     {
       type: 'paragraph',
-      text: 'That shape is a Directed Acyclic Graph. Each node is a task. Each edge is a hard dependency: the child must not become executable until every required parent has completed successfully. Fan-out gives you free parallelism. Fan-in gives you correctness.',
+      text: 'Looks easy. Most of us build one of two things.',
+    },
+    {
+      type: 'paragraph',
+      text: 'A chain of queues:',
+    },
+    {
+      type: 'list',
+      ordered: true,
+      items: [
+        'Queue → worker → next queue → worker → done',
+      ],
+    },
+    {
+      type: 'paragraph',
+      text: 'Or a straight line of awaits:',
+    },
+    {
+      type: 'paragraph',
+      text: '`await imageA()` → `await imageB()` → `await video()` → `await audio()`',
+    },
+    {
+      type: 'paragraph',
+      text: 'It works perfectly. Until production.',
+    },
+
+    {
+      type: 'heading',
+      text: 'Production broke everything',
+    },
+    {
+      type: 'paragraph',
+      text: 'Day 1. One hundred users. Everything works. You ship. You sleep.',
+    },
+    {
+      type: 'paragraph',
+      text: 'Day 10. A worker crashes after generating an image but before acknowledging the message. SQS redelivers. Another worker starts the same task. Now two image generations happen. Double billing. Same output written twice.',
+    },
+    {
+      type: 'paragraph',
+      text: 'Day 20. Video starts. Image B is not finished. You get a half-built video — or a video that ran on incomplete inputs. The queue happily delivered “video work.” It never knew Image B was a prerequisite.',
+    },
+    {
+      type: 'paragraph',
+      text: 'Day 40. Someone edits the workflow in a config UI. The graph becomes a cycle: A → B → C → A. Every task waits forever. Nobody knows why. There is no progress signal — only silence.',
+    },
+    {
+      type: 'paragraph',
+      text: 'Day 60. The workflow has 40,000 nodes. Your “scheduler” does the thing that felt obvious on day 1:',
+    },
+    {
+      type: 'paragraph',
+      text: '`find all waiting tasks` → check dependencies → repeat',
+    },
+    {
+      type: 'paragraph',
+      text: 'CPU sits at 100%. Mongo melts. The entire platform stops — not because one model timed out, but because the control plane scanned the world every tick.',
+    },
+    {
+      type: 'image',
+      src: 'blog/production-ready-dag-task-scheduler/failure-timeline.png',
+      alt: 'Timeline of escalating production failures from day 1 through day 60: happy path, duplicate billing, early video, cyclic wait, and full-graph scan outage',
+      caption:
+        'Same feature. Five weeks. The failures escalate until the platform itself becomes the bottleneck.',
+    },
+    {
+      type: 'callout',
+      title: 'Why are all these happening?',
+      text: 'Not because queues are bad. Not because Mongo is slow. Not because SQS “duplicated.” Because the scheduler does not understand dependencies. That is where a DAG enters — not before.',
+    },
+
+    {
+      type: 'heading',
+      text: 'Why a queue alone is not enough',
+    },
+    {
+      type: 'paragraph',
+      text: 'A queue delivers work. It does not encode “Video may run only after Image A and Image B succeed.” Linear pipelines hide that rule inside your head or inside brittle stage names. Graphs make the rule explicit.',
+    },
+    {
+      type: 'image',
+      src: 'blog/production-ready-dag-task-scheduler/linear-vs-dag.png',
+      alt: 'Side-by-side comparison of a linear queue chain versus a dependency DAG with prompt fanning out to two images that converge into video then audio',
+      caption:
+        'Left: delivery. Right: execution rules. Only one of these knows when Video is allowed to start.',
+    },
+    {
+      type: 'table',
+      headers: ['Question', 'Linear queue / awaits', 'Dependency DAG'],
+      rows: [
+        [
+          'Understands dependencies?',
+          'No — only “what’s next in line”',
+          'Yes — edges are hard prerequisites',
+        ],
+        [
+          'Independent branches in parallel?',
+          'Only if you hand-build fan-out',
+          'Automatic when parents complete',
+        ],
+        [
+          'Fan-in (wait for both images)?',
+          'Easy to get wrong',
+          'First-class: child waits on all parents',
+        ],
+        [
+          'Cycle safety?',
+          'Not a concept',
+          'Reject at create time',
+        ],
+        [
+          'Scales without scanning?',
+          'Often “check everything waiting”',
+          'React: completion wakes direct children',
+        ],
+      ],
+      caption:
+        'Queues move messages. DAGs decide eligibility. You need both — and they are not the same job.',
+    },
+
+    {
+      type: 'heading',
+      text: 'What exactly is a DAG?',
+    },
+    {
+      type: 'paragraph',
+      text: 'Most blogs say “Directed Acyclic Graph” and move on. Nobody understands that from the words alone. Start visually.',
+    },
+    {
+      type: 'paragraph',
+      text: 'A line:',
+    },
+    {
+      type: 'paragraph',
+      text: 'Prompt → Image A → Video → Audio',
+    },
+    {
+      type: 'paragraph',
+      text: 'Add branching:',
+    },
+    {
+      type: 'paragraph',
+      text: 'Prompt → Image A and Image B → both feed Video → Audio',
+    },
+    {
+      type: 'paragraph',
+      text: 'This is no longer a list. It is a graph. Every box is a task. Every arrow is a dependency. One rule powers everything:',
+    },
+    {
+      type: 'callout',
+      title: 'The one rule',
+      text: 'A task cannot run until all incoming edges are complete. Fan-out gives parallelism for free. Fan-in gives correctness.',
     },
     {
       type: 'image',
       src: 'blog/production-ready-dag-task-scheduler/workflow-dag.png',
       alt: 'Workflow DAG showing a prompt task fanning out to two image tasks that converge into video generation and then audio generation',
       caption:
-        'Fan-out gives parallelism for free. Fan-in is where correctness has to be enforced.',
+        'Same product feature as the PM asked for — now drawn as execution rules, not a to-do list.',
+    },
+    {
+      type: 'paragraph',
+      text: 'Why directed? Arrows have direction: Image A enables Video; Video does not enable Image A.',
+    },
+    {
+      type: 'paragraph',
+      text: 'Why acyclic? Because A → B → C → A can never finish. Everyone waits forever. So before a workflow is stored, the API runs a topological sort (Kahn’s algorithm) and rejects cycles. That check belongs on the server. Client-only validation is a suggestion, not a platform guarantee.',
+    },
+
+    {
+      type: 'heading',
+      text: 'How the scheduler thinks',
+    },
+    {
+      type: 'paragraph',
+      text: 'Do not jump into a field dump. Imagine Video depends on Image A and Image B. The scheduler stores one number:',
+    },
+    {
+      type: 'paragraph',
+      text: '`remainingDependencies = 2`',
+    },
+    {
+      type: 'paragraph',
+      text: 'Image A completes. The counter becomes 1. Still waiting. Image B completes. The counter becomes 0. The scheduler immediately knows: Video is READY.',
+    },
+    {
+      type: 'paragraph',
+      text: 'No scan of the whole workflow. No loop asking “is Image A done? is Image B done?” every second. We only react when something changes.',
     },
     {
       type: 'callout',
-      title: 'The failure that forces the design',
-      text: 'Image A finishes. Image B’s worker crashes after the model returns bytes but before the task is marked completed. SQS redelivers. A second worker starts Image B again. Meanwhile a second scheduler sees Image A’s children as READY and enqueues Video early. Without compare-and-set claims, leases, and explicit dependency counters, you get duplicate media, orphaned spend, and a video that started on incomplete inputs.',
+      title: 'Huge lesson',
+      text: 'Good schedulers are event-driven. Completed parents wake children. Polling the entire graph to discover ready work is how day 60 happens.',
     },
+    {
+      type: 'paragraph',
+      text: 'Store edges once — typically as `dependsOn` on the child — and discover dependents with a reverse index on completion. Avoid a duplicated `children` array that drifts from reality. Keep payloads small: media travels as references (`fromTasks`), not as megabytes copied through every hop. The queue message stays tiny — usually `{ taskId }` — and workers re-read truth from the database after claiming.',
+    },
+
     {
       type: 'heading',
-      text: 'Why a DAG — and why validate it on the server',
+      text: 'End-to-end: one click of Generate',
     },
     {
       type: 'paragraph',
-      text: 'A list of jobs is not enough. Real creative workflows branch, converge, and sometimes get edited by clients that accidentally introduce cycles. A cycle is catastrophic: every task waits forever, no progress signal fires, and billing and UX hang.',
-    },
-    {
-      type: 'paragraph',
-      text: 'So before a workflow is stored, the API runs a topological sort (Kahn’s algorithm): count indegrees, repeatedly peel nodes with indegree zero, and reject the workflow if any nodes remain. That check belongs on the server. Client-only validation is a suggestion, not a platform guarantee.',
-    },
-    {
-      type: 'list',
-      items: [
-        'Reject cycles at create time — never discover them as stuck `WAITING` tasks in production.',
-        'Store an immutable snapshot of declared edges plus a mutable outstanding-dependency count per task.',
-        'Do not mutate graph shape at runtime except through controlled admin replay tools.',
-      ],
-    },
-    {
-      type: 'heading',
-      text: 'The invariants that make the rest of the design boring',
-    },
-    {
-      type: 'paragraph',
-      text: 'Senior reviews usually start here. If these hold, most of the scheduler becomes mechanical. If any fail, no amount of queue tuning saves you.',
+      text: 'Walk one request instead of jumping between subsystems.',
     },
     {
       type: 'list',
       ordered: true,
       items: [
-        'A task is eligible only when every required parent has succeeded — eligibility is derived from dependency state, not from a second conflicting flag.',
-        'Amazon SQS (or any comparable queue) provides at-least-once delivery, not exactly-once execution.',
-        'Ownership of work is established by a database compare-and-set claim that creates an `attemptId` and a lease — not by “I received a message.”',
-        'Completion is also a compare-and-set: only the worker holding the matching `attemptId` may finalize the task.',
-        'Logical task state and dispatch/outbox state are separate concerns; confusing them recreates dual-write races.',
-        'Side effects (provider calls, object writes) are idempotent on `(taskId, attemptId)` or a deterministic output key.',
+        'API receives the workflow and validates the graph. Cycle? Reject.',
+        'Store tasks with `remainingDependencies`, `status`, attempt/lease fields, retry budget, and output refs.',
+        'Tasks with `remainingDependencies = 0` become READY.',
+        'READY work enters a transactional outbox; the publisher sends to Amazon SQS.',
+        'Worker receives a message — and does not trust SQS alone. It reads Mongo, claims the task, mints an `attemptId` and a lease.',
+        'Worker runs the model, stores output refs, marks complete under compare-and-set.',
+        'Looks only at direct children, decrements each counter. When a counter hits zero, that child becomes READY and enters the outbox.',
+        'The workflow continues. No full-graph walk.',
       ],
-    },
-    {
-      type: 'callout',
-      title: 'About the “blocked” flag',
-      text: 'Some systems store `blocked=false` beside a non-empty dependency list. That is fine only if one field is clearly derived and never independently mutated. The invariant is single source of truth — not “never denormalize.” Prefer an atomic `remainingDependencies` counter (or an empty outstanding-deps set) that flips the task to READY in the same update that clears the last parent.',
-    },
-    {
-      type: 'heading',
-      text: 'Task model: schedule state, not business payloads',
-    },
-    {
-      type: 'paragraph',
-      text: 'Each task document should stay small. Large prompts, model configs, and media metadata belong in typed payloads or object storage references. The scheduler only needs enough to decide eligibility, claim work, retry, and resolve children.',
-    },
-    {
-      type: 'list',
-      items: [
-        '`status` — logical lifecycle: `WAITING_DEPENDENCY`, `READY`, `RUNNING`, `WAITING_RETRY`, `COMPLETED`, `FAILED`, `CANCELLED`, and optionally `SKIPPED` for cascade policies.',
-        '`remainingDependencies` — materialised count of unfinished required parents.',
-        '`taskType`, `workflowId`, `origin` — routing and attribution.',
-        '`attemptId`, `leaseOwner`, `leaseExpiresAt` — who owns the current run.',
-        '`retryCount`, `maxRetries`, `nextRetryAt` — retry budget and backoff.',
-        '`input` / `outputRefs` — compact params and pointers to produced media.',
-        '`mediaRefs.fromTasks` — data-plane references to ancestor outputs, resolved before execution.',
-      ],
-    },
-    {
-      type: 'paragraph',
-      text: 'Notice what is missing: a duplicated `children` array that must be kept in sync with every child’s `dependsOn`. Store edges once — typically as `dependsOn` on the child — and discover dependents with a reverse index query on completion. That avoids bidirectional drift and still costs O(direct dependents), not O(workflow size).',
-    },
-    {
-      type: 'heading',
-      text: 'Control plane vs data plane',
-    },
-    {
-      type: 'paragraph',
-      text: 'Dependencies decide when a task may run. Media references decide what bytes it consumes. Mixing those concerns is how pipelines start copying multi-megabyte metadata between every hop.',
-    },
-    {
-      type: 'paragraph',
-      text: 'Example: Video does not receive Image A’s PNG in the SQS body. It stores `{ taskId: imageA, output: "image" }` in `fromTasks`. During claim/preprocess, the worker resolves those references into concrete URLs or object keys. The queue message stays tiny — typically `{ taskId, attemptId }` — so workers re-read authoritative state from MongoDB (or your system of record) after claiming.',
-    },
-    {
-      type: 'callout',
-      title: 'Why tiny messages',
-      text: 'Large messages couple your queue to payload evolution, inflate fan-out cost, and make retries rewrite stale inputs. Keep the queue as a wake-up signal. Keep truth in the database.',
-    },
-    {
-      type: 'heading',
-      text: 'Architecture overview',
-    },
-    {
-      type: 'paragraph',
-      text: 'The control plane looks like this:',
-    },
-    {
-      type: 'list',
-      ordered: true,
-      items: [
-        'Workflow API validates the DAG and persists tasks + edges.',
-        'Tasks with zero dependencies enter `READY`.',
-        'A transactional outbox records “publish this READY task.”',
-        'An outbox publisher sends `{ taskId, attemptSeed }` to Amazon SQS.',
-        'Stateless workers claim a lease in the database, execute, and complete under CAS.',
-        'Completion decrements children’s `remainingDependencies`; newly READY children enter the outbox.',
-        'A reconciler recovers expired leases; a retry scheduler re-publishes after backoff; a DLQ isolates exhausted failures.',
-      ],
-    },
-    {
-      type: 'paragraph',
-      text: 'Workers never scan “all waiting tasks.” They consume wake-ups. The scheduler never walks the whole graph on every tick. Completion work is proportional to the number of direct children of the finished node.',
     },
     {
       type: 'image',
       src: 'blog/production-ready-dag-task-scheduler/scheduler-architecture.png',
       alt: 'Scheduler architecture showing the workflow API, DAG validator, MongoDB tasks and outbox, outbox publisher, SQS, stateless workers, dependency resolver, retry scheduler, dead-letter queue, and lease reconciler',
       caption:
-        'Control plane and data plane stay separate. The queue carries wake-ups; the database carries truth.',
+        'Control plane for eligibility and wake-ups. Data plane for bytes. The queue is a signal, not the source of truth.',
     },
+    {
+      type: 'paragraph',
+      text: 'Cancellation and human gates fit the same model: move a run to `CANCELLED` or a held state that is not READY, and refuse publish/claim once that bit is set. Approvals and billing freezes are just eligibility rules with different names.',
+    },
+    {
+      type: 'callout',
+      title: 'Build vs buy',
+      text: 'Temporal and AWS Step Functions give durability and timers out of the box. Build a custom DAG scheduler when you need deep media routing, per-task-type queues, or billing hooks those products do not fit. The price is owning CAS, leases, outbox, DLQ, and reconciliation yourself.',
+    },
+
     {
       type: 'heading',
-      text: 'State machine and leases',
+      text: 'Concurrency: two workers, one door',
     },
     {
       type: 'paragraph',
-      text: 'Happy path:',
+      text: 'Imagine two workers receive the same message. Who runs the model?',
     },
     {
       type: 'paragraph',
-      text: '`WAITING_DEPENDENCY` → `READY` → `RUNNING` → `COMPLETED`',
+      text: 'Compare-and-set sounds academic until you picture two people trying to lock one room. The first closes the door. The second reaches it — already locked — and leaves. That is CAS: only one update matches `status = READY` (or the retry-eligible state) and wins the claim. The loser sees zero documents modified and exits without calling the provider.',
     },
     {
       type: 'paragraph',
-      text: 'Retry path:',
+      text: 'The claim mints an `attemptId` and `leaseExpiresAt`. Completion is also CAS: only the matching attempt may finalize. Second delivery with a stale attempt is a no-op.',
     },
     {
       type: 'paragraph',
-      text: '`RUNNING` → `WAITING_RETRY` → `READY` → `RUNNING` … until success or budget exhaustion → `FAILED`',
-    },
-    {
-      type: 'paragraph',
-      text: 'The important transition is `READY` → `RUNNING`. It must be atomic and must mint a new `attemptId` plus `leaseExpiresAt`. If two workers (or two redeliveries) race, only one update matches `status = READY` (or `WAITING_RETRY` with `nextRetryAt <= now`). The loser sees zero documents modified and exits without calling the model.',
-    },
-    {
-      type: 'list',
-      items: [
-        'Visibility timeout on SQS is a delivery hint, not ownership.',
-        'If a worker dies while `RUNNING`, the lease expires and the reconciler returns the task to `READY` with a new attempt — or marks it failed if policy says so.',
-        'If you also claim work by polling MongoDB instead of SQS, you still need leases; otherwise crashed workers leave tasks stuck in `RUNNING` forever.',
-      ],
+      text: 'Think of a lease like renting a parking spot. You own it until the timer expires. If you disappear, the spot becomes free. A reconciler returns expired `RUNNING` tasks to READY (or fails them by policy). SQS visibility timeout is a delivery hint. The lease is ownership.',
     },
     {
       type: 'image',
       src: 'blog/production-ready-dag-task-scheduler/task-state-and-lease.png',
       alt: 'Task lifecycle state machine with lease annotations covering waiting on dependencies, ready, running, waiting retry, completed, failed, and cancelled states',
       caption:
-        'The claim transition mints an attempt ID and a lease. Everything downstream keys off that attempt.',
+        'Happy path and retry path share one idea: claim with an attempt, finish only if that attempt still owns the task.',
+    },
+    {
+      type: 'paragraph',
+      text: 'Fan-in races matter too. Image A and Image B may finish milliseconds apart. Both decrement Video’s counter. Decrements must be atomic. Only the transition that observes `1 → 0` marks Video READY and writes the outbox event. Lost updates here look like “Video forever waiting” with a counter that never quite flipped in anyone’s transaction.',
+    },
+
+    {
+      type: 'heading',
+      text: 'Why SQS is not enough',
+    },
+    {
+      type: 'paragraph',
+      text: 'Beginners believe visibility timeout solves everything. Challenge that.',
+    },
+    {
+      type: 'paragraph',
+      text: 'Worker generates an image. Before updating Mongo, the machine dies. Visibility timeout expires. A new worker arrives. What happens?',
+    },
+    {
+      type: 'paragraph',
+      text: 'Image generated twice. Twice the money. Twice the API call — unless side effects are idempotent on `(taskId, attemptId)` or a deterministic object key, and finalize is CAS-guarded.',
     },
     {
       type: 'callout',
-      title: 'Do not collapse dispatch into status',
-      text: 'Publishing to SQS can fail after the DB says READY. Completing a task can succeed while the follow-on publish fails. Model dispatch with an outbox (`PENDING` → `SENT`) or an explicit dispatch substate. One enum that means both “logically ready” and “definitely in the queue” will lie to you under partial failure.',
+      title: 'Memorable line',
+      text: 'Visibility timeout recovered delivery. Not correctness. Correctness comes from claims, leases, attempt IDs, and idempotent side effects.',
     },
+
     {
       type: 'heading',
-      text: 'Completing a task without losing the next one',
+      text: 'Why the outbox exists',
     },
     {
       type: 'paragraph',
-      text: 'When a worker finishes successfully, one transaction should do all of the following:',
-    },
-    {
-      type: 'list',
-      ordered: true,
-      items: [
-        'Verify `status = RUNNING` and `attemptId` matches.',
-        'Persist output references (object keys / URLs), not giant blobs in the task row.',
-        'Mark the task `COMPLETED`.',
-        'Find direct dependents via the reverse index.',
-        'Atomically decrement each child’s `remainingDependencies`.',
-        'When a child’s counter hits zero, set `status = READY` and insert an outbox event to publish it.',
-        'Commit. Only then does the outbox publisher send to SQS.',
-      ],
+      text: 'Imagine Mongo marks Video READY. The server crashes before SQS publish. The task is READY forever and never executes.',
     },
     {
       type: 'paragraph',
-      text: 'If you publish to SQS inside the same code path but outside the transaction, you recreate the classic dual-write: DB commit succeeds, process dies, child never wakes — or SQS send succeeds, DB rolls back, and you enqueue a ghost. The transactional outbox closes that hole. Duplicate outbox publishes are fine because workers claim idempotently.',
+      text: 'Opposite case: SQS publish succeeds, then Mongo rolls back. A worker gets a ghost task.',
+    },
+    {
+      type: 'paragraph',
+      text: 'Those are dual-write gaps between components — not bugs inside SQS or Mongo alone. A transactional outbox closes both: commit “please publish this” with the state change, then a publisher drains the outbox. Duplicate publishes are fine because workers claim idempotently.',
     },
     {
       type: 'image',
@@ -255,221 +356,120 @@ export const productionDagSchedulerPost: Post = {
         'Completion and child wake-up commit together. Publishing happens after the commit, from the outbox.',
     },
     {
-      type: 'heading',
-      text: 'Parallelism for free — and fan-in races that are not free',
+      type: 'callout',
+      title: 'Do not collapse dispatch into status',
+      text: 'One enum that means both “logically ready” and “definitely in the queue” will lie under partial failure. Keep logical status and outbox/dispatch state separate.',
     },
-    {
-      type: 'paragraph',
-      text: 'When `Prompt` completes, both Image tasks become READY in the same dependency-resolution pass. Different workers can run them immediately. No special “parallel scheduler” is required; the DAG encodes it.',
-    },
-    {
-      type: 'paragraph',
-      text: 'Fan-in is harder. Image A and Image B may complete within milliseconds of each other. Both transactions try to decrement Video’s counter. That only works if decrements are atomic (`$inc: -1` with a condition, or equivalent). The worker that observes the counter transition `1 → 0` is responsible for marking Video READY and writing the outbox event. The other sees a still-positive counter and does nothing else. Lost updates here are silent production bugs: Video waits forever with `remainingDependencies = 0` never observed.',
-    },
+
     {
       type: 'heading',
-      text: 'Duplicate execution: what actually prevents it',
+      text: 'What happens during failures',
     },
     {
       type: 'paragraph',
-      text: 'Multiple scheduler instances, overlapping cron ticks, SQS redelivery, and operator replays all look like “run this task again.” Defence in depth:',
-    },
-    {
-      type: 'list',
-      items: [
-        'CAS on publish ownership if you still have a READY scanner — only one publisher moves a given outbox row to SENT.',
-        'CAS on worker claim — only one `attemptId` owns `RUNNING`.',
-        'CAS on finalize — second completion with a stale attempt is a no-op.',
-        'Deterministic output keys — retries overwrite or skip the same object path.',
-        'Provider idempotency keys where the vendor supports them — so a reissued HTTP call does not bill twice.',
-      ],
-    },
-    {
-      type: 'paragraph',
-      text: 'If your article or design review stops at “we use SQS visibility timeout,” push harder. Visibility timeout recovers delivery. Idempotent claims recover correctness.',
-    },
-    {
-      type: 'heading',
-      text: 'Retries, backoff, and the dead-letter boundary',
-    },
-    {
-      type: 'paragraph',
-      text: 'Transient failures are normal for generative APIs: timeouts, rate limits, regional blips, model overload. Permanent failures are different: bad prompt schema, unsupported modality, policy rejection, missing input refs.',
-    },
-    {
-      type: 'paragraph',
-      text: 'On retryable failure:',
-    },
-    {
-      type: 'list',
-      items: [
-        'Increment `retryCount`.',
-        'If still under `maxRetries`, move to `WAITING_RETRY` with `nextRetryAt` from exponential backoff plus jitter.',
-        'When the clock passes `nextRetryAt`, mark `READY` and outbox-publish again.',
-        'If the budget is exhausted, mark `FAILED` and route to a DLQ / operator queue.',
-      ],
-    },
-    {
-      type: 'paragraph',
-      text: 'Example backoff cadence: 5s, 15s, 45s, 2m, then longer caps. Jitter matters when hundreds of tasks share a sick dependency. Without it you recreate a thundering herd on the recovering provider.',
+      text: 'Transient failures (timeouts, rate limits, overload) retry with exponential backoff plus jitter. Permanent failures exhaust the budget and go to a DLQ for humans. Descendants need an explicit product choice: fail-fast (skip the subgraph so billing settles) or park-and-replay (leave children waiting until an operator retries the failed ancestor).',
     },
     {
       type: 'image',
       src: 'blog/production-ready-dag-task-scheduler/failure-retry-recovery.png',
       alt: 'Failure and recovery paths showing worker crash redelivery, expired lease reconciliation, transient failure backoff, exhausted retry budget routing to a dead-letter queue, and descendant policy choices',
       caption:
-        'Four different failures, four different recovery mechanisms. None of them require a human at 3am.',
+        'Different failures need different mechanisms. One retry loop cannot cover all of them.',
     },
     {
-      type: 'callout',
-      title: 'Failure policy for descendants',
-      text: 'You need an explicit product choice. Fail-fast: mark reachable children `SKIPPED` / failed so the workflow settles and billing closes. Park-and-replay: leave children `WAITING_DEPENDENCY` until an operator retries the failed ancestor from the DLQ, then re-open the subgraph. Creative tools often want park-and-replay. Metered SaaS often wants fail-fast. Supporting both is fine; pretending there is only one answer is not.',
+      type: 'table',
+      headers: ['Failure', 'What breaks', 'Fix'],
+      rows: [
+        [
+          'Worker crash mid-run',
+          'Task stuck `RUNNING`, or silent redelivery',
+          'Lease expiry + reconciler; idempotent outputs',
+        ],
+        [
+          'Duplicate SQS message',
+          'Same task twice, double spend',
+          'CAS claim + attempt-scoped finalize',
+        ],
+        [
+          'Provider timeout',
+          'Transient error storms',
+          'Backoff + jitter, then READY again',
+        ],
+        [
+          'Permanent error',
+          'Infinite retry / endless cost',
+          'Retry budget → DLQ / operator queue',
+        ],
+        [
+          'Cycle in the graph',
+          'Workflow waits forever',
+          'Server-side DAG validation at create',
+        ],
+        [
+          'Huge workflow',
+          'DB/CPU melt from full scans',
+          '`remainingDependencies` + wake children only',
+        ],
+        [
+          'READY but never published',
+          'Work stalls after crash between DB and SQS',
+          'Transactional outbox + publisher',
+        ],
+      ],
+      caption:
+        'When someone asks “what if X?”, answer from this table — then dig into the mechanism.',
     },
-    {
-      type: 'heading',
-      text: 'Cancellation and human gates',
-    },
-    {
-      type: 'paragraph',
-      text: 'Users cancel mid-run. Approvals hold a branch. Billing may freeze a workflow. Model those as first-class transitions to `CANCELLED` or a held state that is not `READY`, and ensure publishers and workers refuse work once the terminal or hold bit is set. Cancellation should be idempotent and should stop outbox publish for descendants that never became eligible.',
-    },
+
     {
       type: 'heading',
       text: 'Scaling without scanning the graph',
     },
     {
       type: 'paragraph',
-      text: 'The anti-pattern is:',
+      text: 'Suppose a workflow has a million tasks. Would you, every second, loop every task and check dependencies? Impossible.',
     },
     {
       type: 'paragraph',
-      text: '`find all non-terminal tasks → for each, check whether dependencies are done → repeat`',
+      text: 'A good scheduler never scans the graph to find work. It only reacts. Completion touches direct children. Hot fan-out (one parent, 100,000 children) is batched so one transaction does not lock the world. Index READY / outbox-pending work — not “all non-terminal tasks.”',
     },
     {
       type: 'paragraph',
-      text: 'That becomes O(workflow size) or worse every tick. Instead:',
-    },
-    {
-      type: 'list',
-      items: [
-        'Index READY / outbox-pending work only.',
-        'On completion, touch only direct dependents.',
-        'Bound hot fan-out: if one parent has 100,000 children, process edge updates in batches with continued work tokens so a single transaction does not become a multi-second lock.',
-        'Partition queues by `taskType` or tenant when provider SLAs and fairness differ.',
-      ],
-    },
-    {
-      type: 'paragraph',
-      text: 'Whether a workflow has 10 tasks or 10 million historical tasks, steady-state scheduling cost should track active READY depth and completion fan-out — not the archive size.',
-    },
-    {
-      type: 'heading',
-      text: 'Back of the envelope: one million tasks per day',
-    },
-    {
-      type: 'paragraph',
-      text: 'SDE 3–4 reviews ask for numbers. These are illustrative; your model durations and provider quotas dominate reality.',
-    },
-    {
-      type: 'list',
-      items: [
-        'Average arrival: `1,000,000 / 86,400 ≈ 11.6 tasks/second`.',
-        'Design for a 10× burst: ~116 tasks/second.',
-        'If mean runtime is 120 seconds, Little’s Law gives `11.6 × 120 ≈ 1,390` concurrent in-flight tasks at average load, and ~13,900 at a 10× burst.',
-        'If mean fan-out is 2 child edges per completion, expect ~2M dependency updates/day ≈ 23/s average and ~230/s at burst — cheap if indexed and batched, expensive if each update rescans the graph.',
-        'At ~2 KB per task document, raw task rows are ~2 GB/day before indexes, attempts, and outbox history; object storage for media will dwarf that.',
-        'Provider quotas — images/minute, tokens/minute, concurrent video jobs — usually hit the wall before MongoDB or SQS do.',
-      ],
+      text: 'Illustrative envelope for 1M tasks/day: ~11.6 tasks/s average, ~116/s at a 10× burst. At 120s mean runtime, Little’s Law gives ~1,390 concurrent tasks average and ~13,900 at burst. Mean fan-out of 2 means ~2M edge updates/day — cheap if indexed, fatal if each update rescans the graph. Provider quotas usually hit the wall before Mongo or SQS.',
     },
     {
       type: 'image',
       src: 'blog/production-ready-dag-task-scheduler/scale-envelope.png',
       alt: 'Capacity planning infographic for one million tasks per day showing arrival rate, burst rate, Little’s Law concurrency, dependency edge update rate, hot fan-out warning, and storage estimate',
       caption:
-        'Task count is the least interesting number here. Runtime and fan-out set your capacity.',
+        'Task count is vanity. Runtime, fan-out, and provider quotas set capacity.',
     },
     {
       type: 'callout',
-      title: 'What to watch in production',
-      text: 'Queue depth alone is vanity. Track oldest message age, lease expiry rate, retry rate by error class, critical-path latency per workflow type, stuck `RUNNING` count, outbox lag, and per-tenant concurrency. Those metrics tell you whether the scheduler is healthy or merely busy.',
+      title: 'What to watch',
+      text: 'Oldest message age, lease expiry rate, retry rate by error class, critical-path latency, stuck `RUNNING` count, outbox lag, per-tenant concurrency. Fairness and quotas matter: newest-first policies starve old runs; one customer’s 50,000-node graph should not drown everyone else.',
     },
+
     {
       type: 'heading',
-      text: 'Operational concerns that diagrams omit',
+      text: 'What this scheduler taught me',
     },
     {
       type: 'list',
       items: [
-        'Fairness — newest-first policies starve old runs; prefer per-workflow or per-tenant fairness under load.',
-        'Tenant quotas — protect noisy neighbors when one customer submits a 50,000-node graph.',
-        'Backpressure — if the provider is 429ing, slow READY publish rather than amplifying retries.',
-        'Retention — archive completed task payloads; keep enough history for replay and audit.',
-        'Reconciliation — periodic sweeps for expired leases, stranded READY without outbox rows, and workflows with no progress past an SLA.',
-        'Multi-scheduler safety — overlapping publisher processes are fine if every claim is CAS-protected; you do not need a single global leader for correctness.',
+        'A queue does not understand dependencies; it only delivers work.',
+        'DAGs are not about visualization — they encode execution rules.',
+        'At-least-once delivery is easy; exactly-once execution is a myth. Idempotency is the real solution.',
+        'Never scan an entire workflow to discover ready tasks. Let completed tasks wake their children.',
+        'Distributed systems fail in the gaps between components, not only inside individual services. Outbox, CAS, and leases exist to close those gaps.',
+        'Visibility timeout recovered delivery — not correctness.',
+        'Every optimization should preserve correctness first. Speed without correctness only creates faster failures.',
+        'The best schedulers are event-driven. They react to state changes instead of continuously searching for work.',
+        'Design every component assuming crashes, duplicate messages, retries, and partial failures will happen.',
       ],
     },
     {
-      type: 'heading',
-      text: 'Recovery after restart',
-    },
-    {
       type: 'paragraph',
-      text: 'The scheduler process should be stateless. Durable state lives in MongoDB (or equivalent) and in SQS. If a publisher dies, another instance drains the outbox. Messages already in flight continue. READY tasks missing a SENT outbox row get republished by reconciliation. You should not need to reconstruct an in-memory graph to resume.',
-    },
-    {
-      type: 'heading',
-      text: 'Build vs buy',
-    },
-    {
-      type: 'paragraph',
-      text: 'Temporal, AWS Step Functions, and similar orchestrators give you durable execution, timers, and visibility out of the box. Build a custom DAG scheduler when you need deep control over media routing, per-task-type queues, custom billing hooks, or cost envelopes that managed orchestrators do not fit. The price is owning CAS, leases, outbox, DLQ replay, and reconciliation yourself. That trade-off is rational for AI/media platforms; it is vanity if your graph is a short linear chain and a managed workflow engine already meets SLAs.',
-    },
-    {
-      type: 'heading',
-      text: 'Questions a design review will ask — and answers this design gives',
-    },
-    {
-      type: 'list',
-      items: [
-        'How do you prevent duplicate execution? — CAS claim + attempt-scoped finalize + idempotent side effects.',
-        'What if the worker crashes after doing useful work? — lease expiry + deterministic outputs + safe redelivery.',
-        'What if two parents finish at once? — atomic dependency counters; only the `1→0` transition publishes the child.',
-        'How do multiple schedulers coordinate? — no leader required; shared durable state and CAS.',
-        'How do independent branches run in parallel? — they become READY together; workers scale horizontally on SQS.',
-        'How do you scale to millions of tasks? — no full-graph scans; index READY/outbox; fan out only to direct children; batch hot parents.',
-        'Where does exactly-once come from? — it does not. At-least-once delivery + idempotent processing is the honest model.',
-      ],
-    },
-    {
-      type: 'heading',
-      text: 'What we deliberately avoid',
-    },
-    {
-      type: 'list',
-      items: [
-        'Workers polling the entire task collection for runnable work as the primary path.',
-        'Conflicting readiness signals (`blocked=false` while deps remain) updated on separate code paths.',
-        'Assuming SQS visibility timeout alone equals crash recovery for DB-claimed work.',
-        'Copying full media metadata through every queue message.',
-        'Client-only cycle detection.',
-        'Unbounded retries without a DLQ and an operator story.',
-      ],
-    },
-    {
-      type: 'heading',
-      text: 'The takeaway',
-    },
-    {
-      type: 'paragraph',
-      text: 'A production DAG scheduler is not “run tasks in dependency order.” It is a concurrent system that must tell a consistent story when two schedulers, three redeliveries, and a crashed worker all touch the same node.',
-    },
-    {
-      type: 'paragraph',
-      text: 'Model workflows as validated DAGs. Keep eligibility and dispatch honest. Publish only READY work through an outbox into SQS. Claim with leases and attempt IDs. Complete under compare-and-set while decrementing only direct children. Retry with jittered backoff, isolate permanent failure in a DLQ, and measure queue age and lease expiry — not vanity throughput.',
-    },
-    {
-      type: 'paragraph',
-      text: 'Do that, and independent branches run in parallel while downstream work never starts early. Failure becomes a state transition. Scale becomes a capacity conversation instead of a midnight collection scan.',
+      text: 'If you leave with one instinct, make it this: when a workflow misbehaves, ask whether the system understands dependencies — or whether you asked a queue to do a job only a graph can do.',
     },
   ],
 }

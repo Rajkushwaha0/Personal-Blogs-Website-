@@ -11,42 +11,42 @@ npm run dev
 
 Open the URL Vite prints. It should include `/Personal-Blogs-Website-/` in the path.
 
-## Build for GitHub Pages
+Vite serves files from `public/` at the site root. Blog images live under `public/blog/<post-slug>/` and are referenced in posts as `blog/<post-slug>/....png`.
+
+## Build
 
 ```bash
 npm run build
 ```
 
-This writes the production site into the `docs/` folder.
+This writes the production site into the local `docs/` folder (gitignored). Use it for a local preview:
 
-## Deploy (current setup)
+```bash
+npm run preview
+```
 
-1. Run `npm run build`
-2. Commit and push the `docs/` folder to `main`
-3. In GitHub: **Settings → Pages → Build and deployment**
-   - Source: **Deploy from a branch**
-   - Branch: **main**
-   - Folder: **/docs**
-4. Wait 1–2 minutes, then open:
-   `https://rajkushwaha0.github.io/Personal-Blogs-Website-/`
+Do not edit or commit `docs/`. Static assets belong in `public/` only; every build copies them into `docs/`.
 
-Posts use path URLs (BrowserRouter). Share and open links like:
+## Deploy (GitHub Actions)
+
+Push to `main`. [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) runs `npm ci`, `npm run build`, and deploys the generated `docs/` artifact to GitHub Pages.
+
+In GitHub: **Settings → Pages → Build and deployment**
+
+- Source: **GitHub Actions** (not “Deploy from a branch” + `/docs`)
+
+Site URL:
+
+`https://rajkushwaha0.github.io/Personal-Blogs-Website-/`
+
+Posts use path URLs (`BrowserRouter`). Share links like:
+
 `https://rajkushwaha0.github.io/Personal-Blogs-Website-/posts/...`
 
 A `404.html` copy of the app is generated on build so GitHub Pages can load deep links.
-Old `#/posts/...` links redirect to the path form when the hash is present.
-
-## Why the blank page / missing images happened
-
-GitHub was serving the repo root (`index.html` + `/src/main.tsx`). Browsers cannot run TypeScript that way, so the page stayed blank.
-
-Images also broke because:
-
-- the app requests `/Personal-Blogs-Website-/blog/image.png`
-- the unbuilt repo only had `/Personal-Blogs-Website-/public/blog/image.png`
-
-The Vite build copies `public/blog/*` into `docs/blog/*`, which matches the image URLs.
 
 ## Add a post
 
-Edit [`src/data/posts/index.ts`](src/data/posts/index.ts), then run `npm run build` and push `docs/` again.
+1. Edit or add post data under [`src/data/posts/`](src/data/posts/) and register it in [`src/data/posts/index.ts`](src/data/posts/index.ts).
+2. Put diagrams in `public/blog/<post-slug>/`.
+3. Run `npm run build` locally to verify, then push `main` so Actions deploys.

@@ -1,7 +1,9 @@
 import type { Post } from '../../types/post'
 import { productionDagSchedulerPost } from './productionDagScheduler'
+import { whyGoodLoggingMattersPost } from './whyGoodLoggingMatters'
 
 export const posts: Post[] = [
+  whyGoodLoggingMattersPost,
   productionDagSchedulerPost,
   {
     slug: 'designing-an-end-to-end-media-enrichment-pipeline',

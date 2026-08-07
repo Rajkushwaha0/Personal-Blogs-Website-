@@ -183,15 +183,40 @@ export const whyGoodLoggingMattersPost: Post = {
     },
     {
       type: 'paragraph',
-      text: 'Every incoming request generates an incoming log. We capture useful context: IP, route, query, params, body, headers, `correlationId`, `processId`.',
+      text: 'Every incoming request generates a `request.incoming` event. The point is not “a request happened.” The point is to freeze the exact API call so you can replay the story later.',
     },
     {
       type: 'paragraph',
-      text: 'One important rule: never blindly log sensitive data. Passwords, tokens, authorization headers, and secrets must be redacted — for example `"authorization": "[REDACTED]"` and `"password": "[REDACTED]"`.',
+      text: 'On that event we capture:',
+    },
+    {
+      type: 'list',
+      items: [
+        '`event` — for example `request.incoming` (and later `request.finished`)',
+        'Which API route was hit — method + path, like `POST /api/onboarding`',
+        '`query` — search params from the URL',
+        '`params` — path params (`:userId`, `:orgId`, and so on)',
+        '`body` — the request payload',
+        '`headers` — useful request headers',
+        'Plus IP, `correlationId`, and `processId`',
+      ],
     },
     {
       type: 'paragraph',
-      text: 'We also generate a finish log: status, statusCode, response summary, duration, IDs, and event name. That gives you REQUEST IN → application work → REQUEST OUT.',
+      text: 'Example shape: `{ "event": "request.incoming", "method": "POST", "route": "/api/onboarding/:userId", "params": { "userId": "u-42" }, "query": { "source": "mobile" }, "body": { "plan": "pro", "password": "[REDACTED]" }, "headers": { "content-type": "application/json", "authorization": "[REDACTED]" }, "correlationId": "req-123", "processId": "process-456" }`',
+    },
+    {
+      type: 'paragraph',
+      text: 'One hard rule: never blindly log sensitive data. Passwords, tokens, authorization headers, cookies, API keys, and secrets are replaced with `[REDACTED]` before the log is written. You still see that the field existed — you never store the secret.',
+    },
+    {
+      type: 'callout',
+      title: 'Context without leaking secrets',
+      text: 'Debugging needs the route, body, query, and params. Compliance needs redaction. Do both on every request — redact by field name (password, token, authorization, cookie, secret) so a new endpoint cannot accidentally log credentials.',
+    },
+    {
+      type: 'paragraph',
+      text: 'We also generate a finish log with the same IDs: `event: request.finished`, status, statusCode, response summary, and duration. That gives you REQUEST IN → application work → REQUEST OUT.',
     },
     {
       type: 'paragraph',
@@ -254,8 +279,8 @@ export const whyGoodLoggingMattersPost: Post = {
       items: [
         'Switch to structured JSON logs (Pino or similar) with stable field names.',
         'Add middleware: create `correlationId`, put it on every log, return it on every response.',
-        'Log `request.incoming` and `request.finished` (with duration). Treat a missing finish as a crash clue.',
-        'Redact auth headers, passwords, and tokens before they hit disk.',
+        'Log `request.incoming` with route, query, params, body, and headers — and `request.finished` with duration. Treat a missing finish as a crash clue.',
+        'Redact auth headers, passwords, tokens, and secrets by field name before anything hits disk.',
         'If you have multi-step flows, add a `processId` clients can pass across APIs.',
       ],
     },

@@ -17,8 +17,24 @@ function spaFallback(): Plugin {
   }
 }
 
+function autoRedirectRoot(): Plugin {
+  return {
+    name: 'auto-redirect-root',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url === '/' || req.url === '') {
+          res.writeHead(302, { Location: '/Personal-Blogs-Website-/' })
+          res.end()
+          return
+        }
+        next()
+      })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), spaFallback()],
+  plugins: [react(), spaFallback(), autoRedirectRoot()],
   base: '/Personal-Blogs-Website-/',
   build: {
     // GitHub Pages "Deploy from a branch" + /docs folder

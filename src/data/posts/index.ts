@@ -1,8 +1,10 @@
 import type { Post } from '../../types/post'
+import { llmStreamingBackpressurePost } from './llmStreamingBackpressure'
 import { productionDagSchedulerPost } from './productionDagScheduler'
 import { whyGoodLoggingMattersPost } from './whyGoodLoggingMatters'
 
 export const posts: Post[] = [
+  llmStreamingBackpressurePost,
   whyGoodLoggingMattersPost,
   productionDagSchedulerPost,
   {

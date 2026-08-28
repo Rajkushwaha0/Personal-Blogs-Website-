@@ -92,6 +92,17 @@ function ContentBlock({ block }: { block: PostContentBlock }) {
           {block.caption && <figcaption>{block.caption}</figcaption>}
         </figure>
       )
+    case 'code':
+      return (
+        <figure className="post-code-wrap">
+          {block.caption && (
+            <figcaption className="post-code-caption">{block.caption}</figcaption>
+          )}
+          <pre className="post-code-block" data-language={block.language ?? 'text'}>
+            <code>{block.code}</code>
+          </pre>
+        </figure>
+      )
   }
 }
 

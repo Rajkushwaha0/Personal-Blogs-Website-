@@ -23,6 +23,12 @@ export type PostContentBlock =
       rows: string[][]
       caption?: string
     }
+  | {
+      type: 'code'
+      code: string
+      language?: string
+      caption?: string
+    }
 
 export type Post = PostSummary & {
   content: string | PostContentBlock[]

@@ -87,6 +87,14 @@ export function HomePage() {
       {/* Instant Search & Topic Index Bar */}
       <div className="search-filter-bar">
         <div className="search-input-wrap">
+          <input
+            type="search"
+            className="search-input"
+            placeholder="Search articles by title, topic, or keyword (e.g. 'OT', 'CRDT', 'streaming')..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Search posts"
+          />
           <svg
             className="search-icon"
             width="18"
@@ -97,18 +105,11 @@ export function HomePage() {
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
+            aria-hidden="true"
           >
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
-          <input
-            type="search"
-            className="search-input"
-            placeholder="Search articles by title, topic, or keyword (e.g. 'OT', 'CRDT', 'streaming')..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="Search posts"
-          />
           {searchQuery && (
             <button
               type="button"

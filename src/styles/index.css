@@ -948,6 +948,8 @@ a:hover {
 
 .search-input-wrap {
   position: relative;
+  display: flex;
+  align-items: center;
   width: 100%;
   max-width: 44rem;
   margin: 0 auto;
@@ -956,15 +958,29 @@ a:hover {
 .search-icon {
   position: absolute;
   left: 1.15rem;
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--ink-muted);
   pointer-events: none;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  transition: color 0.2s ease;
+}
+
+.search-input-wrap:focus-within .search-icon {
+  color: var(--accent);
 }
 
 .search-input {
   width: 100%;
-  padding: 0.95rem 2.85rem 0.95rem 3.1rem;
+  padding: 0.92rem 2.85rem 0.92rem 3.15rem;
   font-family: var(--font-body);
   font-size: 1.05rem;
+  line-height: 1.5;
   color: var(--ink);
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
@@ -974,6 +990,16 @@ a:hover {
   outline: none;
   box-shadow: 0 4px 16px -2px rgba(28, 25, 20, 0.04);
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.search-input::-webkit-search-decoration,
+.search-input::-webkit-search-cancel-button,
+.search-input::-webkit-search-results-button,
+.search-input::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  display: none;
 }
 
 .search-input:focus {
@@ -984,18 +1010,29 @@ a:hover {
 
 .search-clear-btn {
   position: absolute;
-  right: 1rem;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
   background: none;
   border: none;
-  font-size: 1.35rem;
+  font-size: 1.25rem;
+  line-height: 1;
   color: var(--ink-muted);
   cursor: pointer;
-  padding: 0.2rem 0.5rem;
-  border-radius: 0.25rem;
+  padding: 0;
+  border-radius: 50%;
+  z-index: 2;
+  transition: color 0.15s, background-color 0.15s;
 }
 
 .search-clear-btn:hover {
   color: var(--ink);
+  background-color: rgba(28, 25, 20, 0.06);
 }
 
 /* Centered Inverted-Triangle Tag Cloud */
@@ -1472,3 +1509,26 @@ a:hover {
     margin-bottom: 2rem;
   }
 }
+
+@media (max-width: 640px) {
+  .search-filter-bar {
+    margin: 1.25rem 0 2rem;
+    gap: 1.25rem;
+  }
+
+  .search-input {
+    font-size: 1rem;
+    padding: 0.82rem 2.5rem 0.82rem 2.85rem;
+  }
+
+  .search-icon {
+    left: 1rem;
+    width: 16px;
+    height: 16px;
+  }
+
+  .search-clear-btn {
+    right: 0.75rem;
+  }
+}
+

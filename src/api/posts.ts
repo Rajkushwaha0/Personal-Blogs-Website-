@@ -1,4 +1,4 @@
-import { posts } from '../data/posts'
+import { postSummaries } from '../data/posts'
 import type { Post, PostSummary } from '../types/post'
 
 const SERIES_TITLES: Record<string, string> = {
@@ -12,34 +12,31 @@ export type ComingSoonSeries = {
   posts: PostSummary[]
 }
 
-function toSummary(post: Post): PostSummary {
-  return {
-    slug: post.slug,
-    title: post.title,
-    date: post.date,
-    excerpt: post.excerpt,
-    status: post.status,
-    series: post.series,
-    part: post.part,
-    tags: post.tags,
-  }
+// Dynamic import loaders: enables on-demand code splitting and true lazy loading for each post
+const postLoaders: Record<string, () => Promise<Record<string, unknown>>> = {
+  'how-google-docs-works-real-time-collaboration': () =>
+    import('../data/posts/howGoogleDocsWorks'),
+  'streaming-llm-tokens-without-melting-your-servers': () =>
+    import('../data/posts/llmStreamingBackpressure'),
+  'why-good-logging-matters-correlation-ids-and-observability': () =>
+    import('../data/posts/whyGoodLoggingMatters'),
+  'production-ready-dag-task-scheduler': () =>
+    import('../data/posts/productionDagScheduler'),
+  'designing-an-end-to-end-media-enrichment-pipeline': () =>
+    import('../data/posts/mediaEnrichmentPipeline'),
+  'welcome-to-raj-blogs': () =>
+    import('../data/posts/welcomeToRajBlogs'),
 }
 
-/**
- * Local data layer. Swap these implementations for fetch('/api/...') later
- * without changing HomePage or PostPage.
- */
 export async function getPosts(): Promise<PostSummary[]> {
-  return posts
+  return postSummaries
     .filter((post) => post.status === 'published')
-    .map(toSummary)
     .sort((a, b) => b.date.localeCompare(a.date))
 }
 
 export async function getComingSoonSeries(): Promise<ComingSoonSeries[]> {
-  const upcoming = posts
+  const upcoming = postSummaries
     .filter((post) => post.status === 'coming_soon')
-    .map(toSummary)
     .sort((a, b) => (a.part ?? 0) - (b.part ?? 0))
 
   const bySeries = new Map<string, PostSummary[]>()
@@ -62,8 +59,24 @@ export async function getComingSoonSeries(): Promise<ComingSoonSeries[]> {
 }
 
 export async function getPostBySlug(slug: string): Promise<Post | null> {
-  return (
-    posts.find((post) => post.slug === slug && post.status === 'published') ??
-    null
-  )
+  const loader = postLoaders[slug]
+  if (!loader) return null
+
+  try {
+    const mod = await loader()
+    const post = Object.values(mod).find(
+      (item): item is Post =>
+        Boolean(
+          item &&
+            typeof item === 'object' &&
+            'slug' in item &&
+            (item as Post).slug === slug
+        )
+    )
+
+    return post ?? null
+  } catch (err) {
+    console.error(`Failed to dynamically load post for slug: ${slug}`, err)
+    return null
+  }
 }

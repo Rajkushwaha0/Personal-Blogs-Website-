@@ -1,13 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { getComingSoonSeries, getPosts } from '../api/posts'
 import type { ComingSoonSeries } from '../api/posts'
 import { PostCard } from '../components/PostCard'
 import type { PostSummary } from '../types/post'
+import { useDebounce } from '../utils/timing'
 
 export function HomePage() {
   const [posts, setPosts] = useState<PostSummary[]>([])
   const [comingSoon, setComingSoon] = useState<ComingSoonSeries[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Search and Tag Filter States
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedTag, setSelectedTag] = useState<string | null>(null)
+
+  // Debounce the search input by 180ms to avoid re-rendering on every single keystroke
+  const debouncedSearch = useDebounce(searchQuery, 180)
 
   useEffect(() => {
     let cancelled = false
@@ -27,6 +35,45 @@ export function HomePage() {
     }
   }, [])
 
+  // Collect all unique tags across published posts
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>()
+    for (const post of posts) {
+      if (post.tags) {
+        for (const tag of post.tags) {
+          tagSet.add(tag)
+        }
+      }
+    }
+    return Array.from(tagSet).sort()
+  }, [posts])
+
+  // Filter posts based on debounced search and active tag
+  const filteredPosts = useMemo(() => {
+    const query = debouncedSearch.trim().toLowerCase()
+
+    return posts.filter((post) => {
+      // Tag match
+      if (selectedTag && (!post.tags || !post.tags.includes(selectedTag))) {
+        return false
+      }
+
+      // Query match (title, excerpt, tags)
+      if (!query) return true
+
+      const titleMatch = post.title.toLowerCase().includes(query)
+      const excerptMatch = post.excerpt.toLowerCase().includes(query)
+      const tagMatch = post.tags?.some((t) => t.toLowerCase().includes(query))
+
+      return titleMatch || excerptMatch || tagMatch
+    })
+  }, [posts, debouncedSearch, selectedTag])
+
+  const handleResetFilters = () => {
+    setSearchQuery('')
+    setSelectedTag(null)
+  }
+
   return (
     <section className="home">
       <div className="home-intro">
@@ -37,17 +84,97 @@ export function HomePage() {
         </p>
       </div>
 
+      {/* Instant Search & Topic Index Bar */}
+      <div className="search-filter-bar">
+        <div className="search-input-wrap">
+          <svg
+            className="search-icon"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="search"
+            className="search-input"
+            placeholder="Search articles by title, topic, or keyword (e.g. 'OT', 'CRDT', 'streaming')..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Search posts"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              className="search-clear-btn"
+              onClick={() => setSearchQuery('')}
+              aria-label="Clear search input"
+            >
+              ×
+            </button>
+          )}
+        </div>
+
+        {/* Tag Index Filter Pills */}
+        {allTags.length > 0 && (
+          <div className="tag-filters-list">
+            <button
+              type="button"
+              className={`tag-filter-btn ${selectedTag === null ? 'active' : ''}`}
+              onClick={() => setSelectedTag(null)}
+            >
+              All Topics
+            </button>
+            {allTags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                className={`tag-filter-btn ${selectedTag === tag ? 'active' : ''}`}
+                onClick={() =>
+                  setSelectedTag((prev) => (prev === tag ? null : tag))
+                }
+              >
+                #{tag}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {loading ? (
         <p className="status">Loading posts…</p>
       ) : (
         <>
-          <div className="post-list">
-            {posts.map((post) => (
-              <PostCard key={post.slug} post={post} />
-            ))}
-          </div>
+          {filteredPosts.length === 0 ? (
+            <div className="search-empty-state">
+              <p>No articles found matching your criteria.</p>
+              <button
+                type="button"
+                className="reset-filters-btn"
+                onClick={handleResetFilters}
+              >
+                Reset Search & Filters
+              </button>
+            </div>
+          ) : (
+            <div className="post-list">
+              {filteredPosts.map((post) => (
+                <PostCard
+                  key={post.slug}
+                  post={post}
+                  onTagClick={(tag) => setSelectedTag(tag)}
+                />
+              ))}
+            </div>
+          )}
 
-          {comingSoon.length > 0 && (
+          {comingSoon.length > 0 && selectedTag === null && !searchQuery && (
             <section className="coming-soon" aria-labelledby="coming-soon-heading">
               <h2 id="coming-soon-heading" className="coming-soon-heading">
                 Coming soon

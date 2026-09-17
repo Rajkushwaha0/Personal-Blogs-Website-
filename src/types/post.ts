@@ -13,7 +13,7 @@ export type PostSummary = {
 
 export type PostContentBlock =
   | { type: 'paragraph'; text: string }
-  | { type: 'heading'; text: string }
+  | { type: 'heading'; text: string; level?: 2 | 3 }
   | { type: 'list'; items: string[]; ordered?: boolean }
   | { type: 'callout'; title: string; text: string }
   | { type: 'image'; src: string; alt: string; caption?: string }

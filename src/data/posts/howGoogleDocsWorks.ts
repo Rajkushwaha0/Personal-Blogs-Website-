@@ -376,6 +376,7 @@ PATCH /api/documents/123
     {
       type: 'heading',
       text: 'Edge Case A: Same paragraph, different locations',
+      level: 3,
     },
     {
       type: 'paragraph',
@@ -396,6 +397,7 @@ PATCH /api/documents/123
     {
       type: 'heading',
       text: 'Edge Case B: Two users typing at the exact same index',
+      level: 3,
     },
     {
       type: 'paragraph',
@@ -423,6 +425,7 @@ PATCH /api/documents/123
     {
       type: 'heading',
       text: 'Edge Case C: Delete vs. Edit semantic conflicts',
+      level: 3,
     },
     {
       type: 'paragraph',
@@ -894,7 +897,7 @@ V100                          V100                           V100
 
     {
       type: 'heading',
-      text: 'Summary: The 5 core principles of collaborative architecture',
+      text: '22. Summary: The 5 core principles of collaborative architecture',
     },
     {
       type: 'list',

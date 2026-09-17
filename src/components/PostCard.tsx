@@ -60,40 +60,42 @@ export function PostCard({ post, onTagClick }: PostCardProps) {
       onMouseEnter={handleWarmCache}
       onTouchStart={handleWarmCache}
     >
-      <div className="post-card-header">
-        <time className="post-date" dateTime={post.date}>
-          {formatDate(post.date)}
-        </time>
-        {post.tags && post.tags.length > 0 && (
-          <div className="post-tags-list">
-            {post.tags.slice(0, 3).map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                className="post-tag-pill"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  onTagClick?.(tag)
-                }}
-              >
-                #{tag}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <div className="post-card-body">
+        <div className="post-card-header">
+          <time className="post-date" dateTime={post.date}>
+            {formatDate(post.date)}
+          </time>
+          {post.tags && post.tags.length > 0 && (
+            <div className="post-tags-list">
+              {post.tags.slice(0, 2).map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  className="post-tag-pill"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onTagClick?.(tag)
+                  }}
+                >
+                  #{tag}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
-      <h2 className="post-card-title">
-        <Link
-          to={`/posts/${post.slug}`}
-          onMouseEnter={handleWarmCache}
-          onFocus={handleWarmCache}
-        >
-          {post.title}
-        </Link>
-      </h2>
-      <p className="post-excerpt">{post.excerpt}</p>
+        <h2 className="post-card-title">
+          <Link
+            to={`/posts/${post.slug}`}
+            onMouseEnter={handleWarmCache}
+            onFocus={handleWarmCache}
+          >
+            {post.title}
+          </Link>
+        </h2>
+        <p className="post-excerpt">{post.excerpt}</p>
+      </div>
       <Link
         to={`/posts/${post.slug}`}
         className="post-read-more"

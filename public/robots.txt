@@ -1,0 +1,6 @@
+# Allow all search engine crawlers and bots
+User-agent: *
+Allow: /
+
+# Canonical Sitemap location on GitHub Pages
+Sitemap: https://rajkushwaha0.github.io/Personal-Blogs-Website-/sitemap.xml

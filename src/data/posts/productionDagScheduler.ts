@@ -1,7 +1,7 @@
 import type { Post } from '../../types/post'
 
 export const productionDagSchedulerPost: Post = {
-  slug: 'building-a-production-ready-dag-task-scheduler-for-ai-workflows',
+  slug: 'production-ready-dag-task-scheduler',
   title: 'How Production Workflow Schedulers Actually Work',
   date: '2026-07-30',
   excerpt:

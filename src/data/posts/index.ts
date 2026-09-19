@@ -30,12 +30,12 @@ export const postSummaries: PostSummary[] = [
   },
   {
     slug: 'production-ready-dag-task-scheduler',
-    title: 'Building a Production-Ready DAG Task Scheduler in TypeScript',
-    date: '2026-07-31',
+    title: 'How Production Workflow Schedulers Actually Work',
+    date: '2026-07-30',
     excerpt:
-      'From Kahn’s topological sort to worker pools and crash-resilient checkpoints. A complete guide to building an enterprise DAG runner.',
+      'A PM asks for a simple AI pipeline. It works on day 1. By day 60 the platform is on fire. Follow the failures that force every design decision — from dependency counters to CAS, leases, and the outbox.',
     status: 'published',
-    tags: ['algorithms', 'architecture', 'typescript', 'dag', 'concurrency'],
+    tags: ['pipelines', 'scheduler', 'architecture', 'system-design'],
   },
   {
     slug: 'designing-an-end-to-end-media-enrichment-pipeline',

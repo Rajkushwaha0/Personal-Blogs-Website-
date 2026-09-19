@@ -22,6 +22,8 @@ const postLoaders: Record<string, () => Promise<Record<string, unknown>>> = {
     import('../data/posts/whyGoodLoggingMatters'),
   'production-ready-dag-task-scheduler': () =>
     import('../data/posts/productionDagScheduler'),
+  'building-a-production-ready-dag-task-scheduler-for-ai-workflows': () =>
+    import('../data/posts/productionDagScheduler'),
   'designing-an-end-to-end-media-enrichment-pipeline': () =>
     import('../data/posts/mediaEnrichmentPipeline'),
   'welcome-to-raj-blogs': () =>
@@ -64,15 +66,25 @@ export async function getPostBySlug(slug: string): Promise<Post | null> {
 
   try {
     const mod = await loader()
-    const post = Object.values(mod).find(
-      (item): item is Post =>
-        Boolean(
-          item &&
-            typeof item === 'object' &&
-            'slug' in item &&
-            (item as Post).slug === slug
-        )
-    )
+    const post =
+      Object.values(mod).find(
+        (item): item is Post =>
+          Boolean(
+            item &&
+              typeof item === 'object' &&
+              'slug' in item &&
+              (item as Post).slug === slug
+          )
+      ) ??
+      Object.values(mod).find(
+        (item): item is Post =>
+          Boolean(
+            item &&
+              typeof item === 'object' &&
+              'slug' in item &&
+              'content' in item
+          )
+      )
 
     return post ?? null
   } catch (err) {
